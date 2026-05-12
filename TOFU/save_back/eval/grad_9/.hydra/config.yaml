@@ -1,0 +1,79 @@
+model:
+  model_args:
+    device_map: cuda
+    pretrained_model_name_or_path: open-unlearning/unlearn_tofu_Llama-3.2-1B-Instruct_forget10_GradDiff_lr1e-05_alpha5_epoch10
+    attn_implementation: flash_attention_2
+    torch_dtype: bfloat16
+  tokenizer_args:
+    pretrained_model_name_or_path: meta-llama/Llama-3.2-1B-Instruct
+  template_args:
+    apply_chat_template: true
+    system_prompt: You are a helpful assistant.
+    system_prompt_with_special_tokens: '<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+
+      You are a helpful assistant.<|eot_id|>'
+    user_start_tag: '<|start_header_id|>user<|end_header_id|>
+
+
+      '
+    user_end_tag: <|eot_id|>
+    asst_start_tag: '<|start_header_id|>assistant<|end_header_id|>
+
+
+      '
+    asst_end_tag: <|eot_id|>
+    date_string: 10 Apr 2025
+mode: eval
+task_name: grad_9
+seed: 9
+eval:
+  tofu:
+    metrics:
+      forget_Q_A_ROUGE:
+        datasets:
+          TOFU_QA_forget:
+            handler: QADataset
+            args:
+              hf_args:
+                name: ${eval.tofu.forget_split}_perturbed
+                split: train
+                path: locuslab/TOFU
+              question_key: ${eval.tofu.question_key}
+              answer_key: answer
+              max_length: 512
+              predict_with_generate: true
+        collators:
+          DataCollatorForSupervisedDataset:
+            handler: DataCollatorForSupervisedDataset
+            args:
+              padding_side: left
+              index: index
+        generation_args:
+          do_sample: true
+          top_p: null
+          temperature: null
+          max_new_tokens: 200
+          use_cache: true
+          output_dir: NLL
+          set: NLL
+        handler: rouge
+        rouge_type: rougeL_recall
+        batch_size: ${eval.tofu.batch_size}
+    handler: TOFUEvaluator
+    output_dir: ${paths.output_dir}
+    overwrite: false
+    forget_split: ${forget_split}
+    holdout_split: ${holdout_split}
+    retain_logs_path: ${retain_logs_path}
+    question_key: paraphrased_question
+    batch_size: 32
+paths:
+  root_dir: .
+  data_dir: ${paths.root_dir}/data/
+  datasets: ${paths.root_dir}/configs/data/datasets
+  output_dir: ${paths.root_dir}/saves/${mode}/${task_name}
+  work_dir: ${hydra:runtime.cwd}
+forget_split: forget10
+holdout_split: holdout10
+retain_logs_path: saves/eval/tofu_Llama-3.2-1B-Instruct_retain90/TOFU_EVAL.json
